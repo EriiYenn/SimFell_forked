@@ -5,7 +5,6 @@ using System.CommandLine;
 using System.CommandLine.Invocation;
 using Spectre.Console;
 using SimFell.SimFileParser.Enums;
-using System.Collections.Concurrent;
 
 // Set up command line argument parsing
 var rootCommand = new RootCommand("SimFell Simulation Runner");
@@ -74,80 +73,68 @@ rootCommand.SetHandler(async (InvocationContext context) =>
             var result = configManager.LoadConfiguration(configFile, useFileFinder, customDirectory);
             if (result.FullPath == null || result.Config == null)
             {
+                // User selected Exit in file finder
                 Environment.Exit(0);
-                return;
+                return; // Just in case
             }
             var (fullPath, config) = result;
+
+            var enemies = new List<Unit>();
+            for (int i = 0; i < config.Enemies.Count; i++)
+            {
+                enemies.Add(new Unit("Goblin #" + (i + 1), 35000));
+            }
 
             SimLoop.ShowPrettyConfig(config);
 
             if (config.SimulationType == SimulationType.AverageDps)
             {
+                double totalDps = 0;
                 int runCount = config.RunCount;
-                SimRandom.DisableDeterminism();
-                ConsoleLogger.Enabled = false;
 
-                var dpsResults = new ConcurrentBag<double>();
+                SimRandom.DisableDeterminism();
+
+                // Disable logging for the run loop
+                ConsoleLogger.Enabled = false;
 
                 await AnsiConsole.Progress()
                     .StartAsync(async ctx =>
                     {
                         var task = ctx.AddTask($"[green]Running {runCount} simulations...[/]", maxValue: runCount);
-
-                        await Task.Run(() =>
+                        for (int i = 0; i < runCount; i++)
                         {
-                            Parallel.For(0, runCount, i =>
+                            // Create fresh enemies for each run
+                            var freshEnemies = new List<Unit>();
+                            for (int j = 0; j < config.Enemies.Count; j++)
                             {
-                                //Create a Simloop fresh for each run.
-                                SimLoop simLoop = new SimLoop();
-                                
-                                // Create fresh enemies for each run
-                                var freshEnemies = new List<Unit>();
-                                for (int j = 0; j < config.Enemies; j++)
-                                {
-                                    freshEnemies.Add(new Unit(simLoop, "Goblin #" + (j + 1), 35000));
-                                }
+                                freshEnemies.Add(new Unit("Goblin #" + (j + 1), 35000));
+                            }
 
-                                // Clone the config
-                                var freshConfig = config.Clone();
+                            // Create a fresh configuration for each run
+                            var freshConfig = config.Clone();
 
-                                // Run the simulation
-                                double dps = simLoop.Start(
-                                    freshConfig.Player,
-                                    freshEnemies,
-                                    freshConfig.SimulationMode,
-                                    freshConfig.Duration);
+                            double dps = await Task.Run(() =>
+                                SimLoop.Instance.Start(freshConfig.Player, freshEnemies, freshConfig.SimulationMode, freshConfig.Duration));
+                            totalDps += dps;
 
-                                dpsResults.Add(dps);
-
-                                // Update progress (thread-safe)
-                                lock (task)
-                                {
-                                    task.Increment(1);
-                                    task.Description = $"[green]Run {task.Value}/{runCount}[/]";
-                                }
-                            });
-                        });
+                            task.Increment(1);
+                            task.Description = $"[green]Run {i + 1}/{runCount}[/]";
+                        }
                     });
 
+                // Re-enable logging for the summary
                 ConsoleLogger.Enabled = true;
 
-                double averageDps = dpsResults.Average();
+                double averageDps = totalDps / runCount;
                 ConsoleLogger.Log(SimulationLogLevel.DamageEvents, $"[bold purple4]--------------------------------[/]");
                 ConsoleLogger.Log(SimulationLogLevel.DamageEvents, $"Average DPS over [bold blue]{runCount}[/] runs: [bold magenta]{averageDps:F2}[/]");
             }
             else
             {
-                SimLoop simLoop = new SimLoop();
                 SimRandom.EnableDeterminism();
-                var enemies = new List<Unit>();
-                for (int i = 0; i < config.Enemies; i++)
-                {
-                    enemies.Add(new Unit(simLoop,"Goblin #" + (i + 1), 35000));
-                }
 
                 await Task.Run(() =>
-                    simLoop.Start(config.Player, enemies, config.SimulationMode, config.Duration));
+                    SimLoop.Instance.Start(config.Player, enemies, config.SimulationMode, config.Duration));
             }
         }
         catch (Exception ex)
@@ -159,6 +146,7 @@ rootCommand.SetHandler(async (InvocationContext context) =>
             break;
 
         AnsiConsole.MarkupLine("");
+        // Prompt for another run
         var rerun = AnsiConsole.Confirm("Run another simulation with [turquoise4]file finder[/]?", false);
         if (rerun)
         {

@@ -1,12 +1,15 @@
+using SimFell.Engine.Items;
 using SimFell.Logging;
+using SimFell.SimFileParser.Enums;
+
 namespace SimFell;
 
 public class Unit : SimLoopListener
 {
     // Base Variables
     public string Name { get; set; }
-    public int Health { get; set; }
-    public int MaximumHealth { get; set; }
+    public HealthStat Health { get; set; }
+    public Stat Stamina = new Stat(0);
     public List<Aura> Buffs { get; set; } = [];
     public List<Aura> Debuffs { get; set; } = [];
     public List<Spell> SpellBook { get; set; } = [];
@@ -49,6 +52,10 @@ public class Unit : SimLoopListener
     public Stat DamageBuffs = new Stat(0);
     public Stat DamageTakenDebuffs = new Stat(0);
 
+    public GemDictionary GemDictionary { get; set; } = new();
+
+    public TargetType TargetType { get; set; }
+
     //Events 
     public Action<Unit, double, Spell?, Aura?>? OnDamageDealt { get; set; }
     public Action<Unit, double, Spell?, Aura?>? OnDamageReceived { get; set; }
@@ -56,17 +63,50 @@ public class Unit : SimLoopListener
     public Action<Unit, Spell, List<Unit>> OnCast { get; set; } = (unit, spellSource, targets) => { };
     public Action<Unit, Spell, List<Unit>> OnCastDone { get; set; } = (unit, spellSource, targets) => { };
 
-    public Unit(SimLoop simLoop, string name, int health) : base(simLoop)
+    // On Health Updated event
+    public event Action? OnHealthUpdated;
+
+    public Unit(string name, int stamina, TargetType targetType = TargetType.TRASH)
     {
         Name = name;
-        Health = health;
-        MaximumHealth = health;
+        Stamina = new Stat(stamina);
+        Health = new HealthStat(Stamina.GetValue());
+        TargetType = targetType;
+
         //Add base 5% Crit.
         CritcalStrikeStat.AddModifier(new Modifier(Modifier.StatModType.BasePercentage, 5));
+
+        // Subscribe to Stat Modifiers.
+        Stamina.OnModifierAdded += UpdateHealthFromStamina;
+        Stamina.OnModifierRemoved += UpdateHealthFromStamina;
     }
 
-    public Unit(SimLoop simLoop, string name, int health, int mainStat, int critcalStrikeStat, int expertiseStat, int hasteStat,
-        int spiritStat) : this(simLoop, name, health)
+    private void UpdateHealthFromStamina()
+    {
+        ConsoleLogger.Log(SimulationLogLevel.Debug, $"Updating health from stamina");
+
+        double oldMax = Health.GetMaxValue();
+        double newMax = Stamina.GetValue();
+
+        // Adjust current health proportionally
+        if (oldMax > 0)
+        {
+            Health.BaseValue = Health.GetValue() / oldMax * newMax;
+            Health.MaximumValue = Health.GetMaxValue() / oldMax * newMax;
+        }
+        else
+        {
+            Health.BaseValue = newMax;
+            Health.MaximumValue = newMax;
+        }
+
+        OnHealthUpdated?.Invoke();
+
+        ConsoleLogger.Log(SimulationLogLevel.Debug, $"New health: {Health.GetValue()} | Max Health: {Health.GetMaxValue()}");
+    }
+
+    public Unit(string name, int health, int mainStat, int critcalStrikeStat, int expertiseStat, int hasteStat,
+        int spiritStat) : this(name, health)
     {
         SetPrimaryStats(mainStat, critcalStrikeStat, expertiseStat, hasteStat, spiritStat);
     }
@@ -199,6 +239,15 @@ public class Unit : SimLoopListener
     public double TakeDamage(double amount, bool isCritical, Spell? spellSource = null, Aura? auraSource = null)
     {
         var totalDamage = (int)DamageTakenDebuffs.GetValue(amount);
+
+        if (spellSource != null && spellSource.ID == "ruby-storm")
+        {
+            ConsoleLogger.Log(
+                SimulationLogLevel.Debug,
+                $"Taking damage: {totalDamage} | Raw Amount: {amount}"
+            );
+        }
+
         // Log damage event with coloring for critical hits
         var sourceName = spellSource != null ? spellSource.Name
                          : auraSource != null ? auraSource.Name
@@ -210,17 +259,21 @@ public class Unit : SimLoopListener
         ConsoleLogger.Log(SimulationLogLevel.DamageEvents, message, isCritical ? "💥" : null);
 
         OnDamageReceived?.Invoke(this, totalDamage, spellSource, auraSource);
-        Health -= totalDamage;
+
+        Health.BaseValue -= totalDamage;
+        if (Health.GetValue() < 0) Health.BaseValue = 0;
+        OnHealthUpdated?.Invoke();
+
         return totalDamage;
     }
 
     protected override void Update()
     {
-        Spirit = Math.Min(100, Spirit + (SimLoop.GetStep() * 0.2 * (1 + (SpiritStat.GetValue() / 100.0)))); //Base Spirit Regen is 0.2.
+        Spirit = Math.Min(100, Spirit + (SimLoop.Instance.GetStep() * 0.2 * (1 + (SpiritStat.GetValue() / 100.0)))); //Base Spirit Regen is 0.2.
         // Update buffs
         for (int i = Buffs.Count - 1; i >= 0; i--)
         {
-            Buffs[i].Update(SimLoop.GetElapsed());
+            Buffs[i].Update(SimLoop.Instance.GetElapsed());
             if (Buffs[i].IsExpired)
             {
                 ConsoleLogger.Log(
@@ -236,7 +289,7 @@ public class Unit : SimLoopListener
         // Update debuffs
         for (int i = Debuffs.Count - 1; i >= 0; i--)
         {
-            Debuffs[i].Update(SimLoop.GetElapsed());
+            Debuffs[i].Update(SimLoop.Instance.GetElapsed());
             if (Debuffs[i].IsExpired)
             {
                 ConsoleLogger.Log(
@@ -257,7 +310,7 @@ public class Unit : SimLoopListener
         if (IsCasting && _currentSpell != null)
         {
             //If the casting is done.
-            if (!_currentSpell.Channel && SimLoop.GetElapsed() >= _castTime)
+            if (!_currentSpell.Channel && SimLoop.Instance.GetElapsed() >= _castTime)
             {
                 _currentSpell.Cast(this, Targets);
                 OnCast?.Invoke(this, _currentSpell, Targets);
@@ -265,12 +318,12 @@ public class Unit : SimLoopListener
             }
             else if (_currentSpell.Channel)
             {
-                if (SimLoop.GetElapsed() >= _tickTime)
+                if (SimLoop.Instance.GetElapsed() >= _tickTime)
                 {
                     _tickTime = Math.Round(_tickTime + _currentSpell.GetTickRate(this), 2);
                     _currentSpell.Tick(this, Targets);
                 }
-                if (SimLoop.GetElapsed() >= _channelTime)
+                if (SimLoop.Instance.GetElapsed() >= _channelTime)
                 {
                     StopCasting();
                 }
@@ -289,10 +342,7 @@ public class Unit : SimLoopListener
         PrimaryTarget = target;
     }
 
-    public bool IsDead()
-    {
-        return Health <= 0;
-    }
+    public bool IsDead() => Health.GetValue() <= 0;
 
     public void Died()
     {
@@ -312,7 +362,7 @@ public class Unit : SimLoopListener
             SimulationLogLevel.CastEvents,
             $" -> Setting [bold blue]GCD[/] to [bold aqua]{gcd}[/]"
         );
-        GCD = gcd + SimLoop.GetElapsed();
+        GCD = gcd + SimLoop.Instance.GetElapsed();
     }
 
     public void StartCasting(Spell spell, List<Unit> targets)
@@ -327,7 +377,7 @@ public class Unit : SimLoopListener
         {
             _currentSpell = spell;
             Targets = targets;
-            _castTime = Math.Round(SimLoop.GetElapsed() + spell.GetCastTime(this), 2);
+            _castTime = Math.Round(SimLoop.Instance.GetElapsed() + spell.GetCastTime(this), 2);
             IsCasting = true;
             SetGCD(spell.GetGCD(this));
 
@@ -338,8 +388,8 @@ public class Unit : SimLoopListener
                 spell.Cast(this, targets);
                 //Channeled spells always tick once at the very start.
                 spell.Tick(this, targets);
-                _channelTime = Math.Round(SimLoop.GetElapsed() + spell.GetChannelTime(this), 2);
-                _tickTime = Math.Round(SimLoop.GetElapsed() + spell.GetTickRate(this), 2);
+                _channelTime = Math.Round(SimLoop.Instance.GetElapsed() + spell.GetChannelTime(this), 2);
+                _tickTime = Math.Round(SimLoop.Instance.GetElapsed() + spell.GetTickRate(this), 2);
             }
 
             if (spell.GetCastTime(this) == 0 && spell.GetChannelTime(this) == 0)

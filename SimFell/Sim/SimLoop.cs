@@ -7,6 +7,8 @@ namespace SimFell;
 
 public class SimLoop
 {
+    private static SimLoop? _instance;
+    public static SimLoop Instance => _instance ??= new();
     public event Action? OnUpdate;
     // Simulate 0.1 th of a second. Or 100 Ticks a Second.
     // For reference, WoW servers run at around a 20 Tickrate.
@@ -33,7 +35,8 @@ public class SimLoop
                 break;
             if (mode == SimulationMode.Time)
             {
-                foreach (var target in targets) target.Health = 999999; //Hacky temp?
+                foreach (var target in targets)
+                    target.Health = new HealthStat(999999);
             }
 
             // Stop condition: Health mode
@@ -67,7 +70,7 @@ public class SimLoop
 
             for (int i = enemies.Count - 1; i >= 0; i--)
             {
-                if (targets[i].Health <= 0)
+                if (targets[i].Health.GetValue() <= 0)
                 {
                     targets[i].Died();
                     targets.RemoveAt(i);
@@ -105,28 +108,42 @@ public class SimLoop
         return step;
     }
 
-    public static void ShowConfig(SimFellConfiguration config)
+    public static void ShowRawConfig(SimFellConfiguration config)
     {
-        ConsoleLogger.Log(SimulationLogLevel.Debug, config.ToStringFormatted);
+        ConsoleLogger.Log(
+            SimulationLogLevel.Debug,
+            $"!! Raw Config from file (without any modifications):\n{config.ToStringFormatted}"
+        );
     }
 
     public static void ShowPrettyConfig(SimFellConfiguration config)
     {
+        // NOTE: !!! This takes modified values into account.
+
         var table = new Table();
         table.Title = new TableTitle(
             $"{config.Hero} DPS Simulation\n",
             new Style(Color.Grey, decoration: Decoration.Italic)
         );
         table.Border = TableBorder.None;
-        table.Width = 50;
 
-        table.AddColumn(new TableColumn(new Text("Attribute", new Style(Color.MediumPurple4, decoration: Decoration.Bold)).Centered()).Width(20));
-        table.AddColumn(new TableColumn(new Text("Value", new Style(Color.MediumPurple4, decoration: Decoration.Bold)).Centered()));
+        table.AddColumn(new TableColumn(
+            new Text(
+                "Attribute",
+                new Style(Color.MediumPurple4, decoration: Decoration.Bold)
+            ).Centered()).Width(20)
+        );
+        table.AddColumn(new TableColumn(
+            new Text(
+                "Value",
+                new Style(Color.MediumPurple4, decoration: Decoration.Bold)
+            ).Centered())
+        );
         table.AddRow(new Rule(), new Rule());
 
         table.AddRow(
-            new Text("Enemy Count", "blue").Centered(),
-            new Text($"{config.Enemies}", "yellow").Centered()
+            new Text("Enemies", "blue").Centered(),
+            new Text($"{string.Join(", ", config.Enemies.Select(e => e.Name()))}", "yellow").Centered()
         );
         table.AddRow(
             new Text("Duration", "blue").Centered(),
@@ -153,20 +170,12 @@ public class SimLoop
         table.AddEmptyRow();
         table.AddRow(
             new Text("\n\nCharacter", "blue").Centered(),
-            // new Text(
-            //     $"main: {config.Player.MainStat.GetValue()}\n"
-            //     + $"crit: {Math.Round(config.Player.CritcalStrikeStat.GetValue(), 2)}% ({config.Player.CritcalStrikeStat.BaseValue})\n"
-            //     + $"exp: {Math.Round(config.Player.ExpertiseStat.GetValue(), 2)}% ({config.Player.ExpertiseStat.BaseValue})\n"
-            //     + $"haste: {Math.Round(config.Player.HasteStat.GetValue(), 2)}% ({config.Player.HasteStat.BaseValue})\n"
-            //     + $"spirit: {Math.Round(config.Player.SpiritStat.GetValue(), 2)}% ({config.Player.SpiritStat.BaseValue})",
-            //     "yellow"
-            // ).Centered()
             Align.Center(
                 new Grid().AddColumn().AddColumn().AddColumn()
                     .AddRow(new Text[]{
                         new ("main:", "yellow"),
-                        new ($"{config.Player.MainStat.GetValue()}%", "yellow"),
-                        new ($"({config.Player.MainStat.BaseValue})", "yellow"),
+                        new ($"{Math.Round(config.Player.MainStat.GetValue())}", "yellow"),
+                        new ("", "yellow") // Empty cell
                     })
                     .AddRow(new Text[]{
                         new ("crit:", "yellow"),
@@ -191,8 +200,50 @@ public class SimLoop
             )
         );
 
-        AnsiConsole.WriteLine();
-        AnsiConsole.Write(table);
-        AnsiConsole.WriteLine(); // Empty line
+        table.AddEmptyRow();
+        table.AddRow(
+            new Text(new string('\n', config.Gear.ToList().Count * 2) + "Gear", "blue").Centered(),
+            Align.Center(
+                new Panel(new Rows(
+                    config.Gear.Helmet != null ? RenderEquipment(config.Gear.Helmet) : new Grid(),
+                    new Text(""),
+                    config.Gear.Shoulder != null ? RenderEquipment(config.Gear.Shoulder) : new Grid()
+                )).Border(BoxBorder.Double).Expand()
+            )
+        );
+
+        ConsoleLogger.Log(SimulationLogLevel.Setup, "");
+        ConsoleLogger.Log(SimulationLogLevel.Setup, table);
+        ConsoleLogger.Log(SimulationLogLevel.Setup, "");
+    }
+
+    private static Grid RenderEquipment(Equipment e)
+    {
+        var grid = new Grid();
+        grid.AddColumn();
+        grid.Columns[0].Padding(0, 0, 0, 0);
+
+        // Title row (merged, centered)
+        var title = $"[bold]{e.Name} ({e.Ilvl})[/] - [green]{e.Tier}[/]"
+            + (e.TierSet != null ? $" ([yellow]{e.TierSet.Name()}[/])" : "");
+        grid.AddRow(new Markup(title).Centered());
+
+        // Stats row
+        grid.AddRow(new Markup(
+            $"Ma: [yellow]{e.MainStat}[/] | "
+            + $"St: [yellow]{e.Stamina}[/] | "
+            + $"Ex: [yellow]{e.Expertise ?? 0}[/] | "
+            + $"Cr: [yellow]{e.Crit ?? 0}[/] | "
+            + $"Ha: [yellow]{e.Haste ?? 0}[/] | "
+            + $"Sp: [yellow]{e.Spirit ?? 0}[/]"
+        ).Centered());
+
+        // Gem info row (merged, centered)
+        var gemInfo = e.Gem != null
+            ? $"{e.Gem} +{e.GemBonus ?? 0}%"
+            : "<no gem>";
+        grid.AddRow(new Markup(gemInfo).Centered());
+
+        return grid;
     }
 }

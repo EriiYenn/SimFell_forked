@@ -2,6 +2,7 @@ using Newtonsoft.Json;
 using System.Reflection;
 using System.Globalization;
 using SimFell.Logging;
+using Spectre.Console;
 using SimFell.SimFileParser.Enums;
 
 namespace SimFell.SimFileParser.Models;
@@ -20,6 +21,11 @@ public class Condition
         return $"{Left} {Operator} {Right}";
     }
 
+    /// <summary>
+    /// Check if the condition is met.
+    /// </summary>
+    /// <param name="caster">The unit to check the condition on.</param>
+    /// <returns>True if the condition is met, false otherwise.</returns>
     public bool Check(Unit caster)
     {
         if (string.IsNullOrEmpty(Left) || string.IsNullOrEmpty(Operator) || Right == null)
@@ -46,7 +52,7 @@ public class Condition
                 switch (prop)
                 {
                     case "cooldown":
-                        var now = caster.SimLoop.GetElapsed();
+                        var now = SimLoop.Instance.GetElapsed();
                         leftValue = spell.OffCooldown - now;
                         // ConsoleLogger.Log(SimulationLogLevel.Debug, $"-> [{spell.Name}] Cooldown: {leftValue}");
                         break;
@@ -67,31 +73,8 @@ public class Condition
                 }
                 break;
             case "character":
-                if (parts.Length != 2)
+                if (parts.Length < 2 || !TryGetNestedMemberDouble(caster, parts, out leftValue))
                     return false;
-                var charProp = parts[1].Replace("_", "");
-                var charType = caster.GetType();
-                var propertyInfo = charType.GetProperty(charProp, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (propertyInfo != null)
-                {
-                    var val = propertyInfo.GetValue(caster) ?? throw new Exception($"Property {charProp} not found on {caster.Name}");
-                    if (!TryConvertToDouble(val, out leftValue))
-                        return false;
-                }
-                else
-                {
-                    var fieldInfo = charType.GetField(charProp, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (fieldInfo != null)
-                    {
-                        var val = fieldInfo.GetValue(caster) ?? throw new Exception($"Field {charProp} not found on {caster.Name}");
-                        if (!TryConvertToDouble(val, out leftValue))
-                            return false;
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                }
                 break;
             case "buff":
                 if (parts.Length != 3)
@@ -139,9 +122,17 @@ public class Condition
             _ => false,
         };
 
+        // ConsoleLogger.Log(SimulationLogLevel.Debug, $"Condition: {Left} {Operator} {Right} => {finalResult}");
+
         return finalResult;
     }
 
+    /// <summary>
+    /// Try to convert a value to a double.
+    /// </summary>
+    /// <param name="val">The value to convert.</param>
+    /// <param name="result">The converted value.</param>
+    /// <returns>True if the value was converted, false otherwise.</returns>
     private bool TryConvertToDouble(object val, out double result)
     {
         if (val is double d) { result = d; return true; }
@@ -150,6 +141,45 @@ public class Condition
         if (val is long l) { result = l; return true; }
         if (val is string s && double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d2)) { result = d2; return true; }
         result = 0; return false;
+    }
+
+    /// <summary>
+    /// Try to get a nested member of an object as a double.
+    /// </summary>
+    /// <param name="target">The object to get the nested member from.</param>
+    /// <param name="parts">The parts of the path to the nested member.</param>
+    /// <param name="result">The converted value.</param>
+    /// <returns>True if the value was converted, false otherwise.</returns>
+    private bool TryGetNestedMemberDouble(object target, string[] parts, out double result)
+    {
+        object current = target;
+        for (int i = 1; i < parts.Length; i++)
+        {
+            var name = parts[i].Replace("_", "");
+            // ConsoleLogger.Log(SimulationLogLevel.Debug, Markup.Escape($"Name: {name}"));
+            var type = current.GetType();
+            // ConsoleLogger.Log(SimulationLogLevel.Debug, Markup.Escape($"Current type: {type}"));
+            var propInfo = type.GetProperty(name, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (propInfo != null)
+            {
+                current = propInfo.GetValue(current) ?? throw new Exception($"Property {name} not found on {type.Name}");
+            }
+            else
+            {
+                var fieldInfo = type.GetField(name, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (fieldInfo != null)
+                {
+                    current = fieldInfo.GetValue(current) ?? throw new Exception($"Field {name} not found on {type.Name}");
+                }
+                else
+                {
+                    result = 0;
+                    return false;
+                }
+            }
+            // ConsoleLogger.Log(SimulationLogLevel.Debug, Markup.Escape($"Current: {current}"));
+        }
+        return TryConvertToDouble(current, out result);
     }
 }
 
@@ -189,12 +219,13 @@ public class SimFellConfiguration
     public string? Trinket1 { get; set; }
     public string? Trinket2 { get; set; }
     public int Duration { get; set; }
-    public int Enemies { get; set; }
+    public List<TargetType> Enemies { get; set; } = [];
     public int RunCount { get; set; }
     public List<ConfigAction> ConfigActions { get; set; } = [];
     public Gear Gear { get; set; } = new();
 
     public Unit Player { get; set; }
+    public List<Unit> TargetEnemies { get; set; } = [];
 
     // Doesnt work :(
     public string ParsedJson => JsonConvert.SerializeObject(this, Formatting.Indented);
@@ -218,7 +249,7 @@ public class SimFellConfiguration
         Trinket2: {Trinket2}
         ------------
         Duration: {Duration}
-        Enemies: {Enemies}
+        Enemies: {string.Join(", ", Enemies.Select(e => e.Name()))}
         RunCount: {RunCount}
         ------------
         ConfigActions:
@@ -239,6 +270,7 @@ public class SimFellConfiguration
         SetPlayerStats();
         ApplyTalents();
         SetupRotation();
+        ApplyGems();
     }
 
     private void SetPlayerStats()
@@ -264,6 +296,27 @@ public class SimFellConfiguration
                         i + 1,
                         int.Parse(talentGroups[i][j].ToString())
                     );
+    }
+
+    /// <summary>
+    /// Apply gems to the player.
+    /// </summary>
+    /// <param name="config">The configuration to apply the gems to.</param>
+    private void ApplyGems()
+    {
+        foreach (var gear in Gear.ToList())
+        {
+            if (gear.Gem != null)
+            {
+                ConsoleLogger.Log(SimulationLogLevel.Setup, $"Adding '{gear.Gem}' from '{gear.Name}'");
+                Player.GemDictionary.GemList.First(g => g.Type == gear.Gem.Gem).AddPower(gear.Gem.Power);
+            }
+        }
+        foreach (var gem in Player.GemDictionary.GemList)
+        {
+            ConsoleLogger.Log(SimulationLogLevel.Setup, $"{gem.Type} Power: {gem.Power}");
+            gem.Apply(Player, TargetEnemies);
+        }
     }
 
     private void SetupRotation()

@@ -3,10 +3,10 @@ namespace SimFell;
 public class Stat
 {
     //Base Value as points.
-    public double BaseValue { get; set; }
+    public double BaseValue;
 
     private bool _hasDiminishingReturns;
-    
+
     private const double PointEffectiveness = 0.21; //Base effectivenes per point. (0.21%).
     private readonly double[] _breakPoints = [10.0, 15.0, 20.0, 25.0]; //Percent Threasholds for Break Points.
     private readonly double[] _breakPointMultipliers = [1, 0.9, 0.8, 0.7, 0.6];
@@ -16,11 +16,23 @@ public class Stat
         BaseValue = baseStat;
         _hasDiminishingReturns = hasDiminishingReturns;
     }
-    
+
     private readonly List<Modifier> _modifiers = new();
-    
-    public void AddModifier(Modifier modifier) => _modifiers.Add(modifier);
-    public void RemoveModifier(Modifier modifier) => _modifiers.Remove(modifier);
+
+    public void AddModifier(Modifier modifier)
+    {
+        _modifiers.Add(modifier);
+        OnModifierAdded?.Invoke();
+    }
+    public void RemoveModifier(Modifier modifier)
+    {
+        _modifiers.Remove(modifier);
+        OnModifierRemoved?.Invoke();
+    }
+
+    public event Action? OnModifierAdded;
+    public event Action? OnModifierRemoved;
+
 
     public double GetValue()
     {
@@ -32,26 +44,26 @@ public class Stat
         double raw = inBaseValue + _modifiers
             .Where(m => m.StatMod == Modifier.StatModType.Flat)
             .Sum(m => m.Value);
-        
+
         //If it has Diminishing Returns. Calculate the Diminishing Returns.
         double value = _hasDiminishingReturns ? GetStatAsPercentage((int)raw) : raw;
-        
+
         //Adds any Additive Percentages to the Value.
         value += _modifiers
             .Where(m => m.StatMod == Modifier.StatModType.AdditivePercent)
             .Sum(m => m.Value);
-        
+
         //Any extra Multiplicative Percentages.
         foreach (var mod in _modifiers.Where(m => m.StatMod == Modifier.StatModType.MultiplicativePercent))
             value *= 1 + (mod.Value / 100.0);
-        
+
         //Flat multipliers. Eg 2.0
         foreach (var mod in _modifiers.Where(m => m.StatMod == Modifier.StatModType.Multiplicative))
             value *= mod.Value;
 
         return value;
     }
-    
+
     public double GetStatAsPercentage(int statPoints)
     {
         //Adds Base Percentage. EG: 5% Base Crit.
@@ -77,6 +89,23 @@ public class Stat
         return statPercentage;
     }
 
+    public bool HasModifier(Modifier modifier) => _modifiers.Contains(modifier);
+
+}
+
+public class HealthStat : Stat
+{
+    public double MaximumValue;
+
+    public HealthStat(double baseStat, bool hasDiminishingReturns = false) : base(baseStat, hasDiminishingReturns)
+    {
+        MaximumValue = baseStat;
+    }
+
+    public double GetMaxValue()
+    {
+        return GetValue(MaximumValue);
+    }
 }
 
 public class Modifier

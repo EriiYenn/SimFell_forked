@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
 using Spectre.Console;
+using Spectre.Console.Rendering;
 
 namespace SimFell.Logging;
 
@@ -51,6 +52,23 @@ public static class ConsoleLogger
             AnsiConsole.MarkupLine(formatted);
         else
             AnsiConsole.MarkupLine($"Time [aqua]{time:F2}[/]: {formatted}");
+    }
+
+    public static void Log(SimulationLogLevel level, IRenderable renderable)
+    {
+        if (!_enabledLevels.HasFlag(level))
+        {
+            return;
+        }
+
+        var time = SimLoop.Instance.GetElapsed();
+        if (level != SimulationLogLevel.Setup)
+        {
+            AnsiConsole.MarkupLine($"Time [aqua]{time:F2}[/]:");
+        }
+        AnsiConsole.Write(renderable);
+
+        FileLogger.SimulationEvent(level, $"{time:F2}s : {renderable} (Reference console output)");
     }
 }
 

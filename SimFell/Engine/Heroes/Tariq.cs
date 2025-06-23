@@ -31,7 +31,7 @@ public class Tariq : Unit
     private Stat focusedWrathCostBuff = new Stat(0);
     private Stat bonusFuryGain = new Stat(0);
 
-    public Tariq(SimLoop simLoop, int health) : base(simLoop, "Tariq", health)
+    public Tariq(int health) : base("Tariq", health)
     {
         _swingTimer = new Stat(4.8);
         OnDamageDealt += GainFury;
@@ -60,7 +60,7 @@ public class Tariq : Unit
 
     private void ResetSwingTimer()
     {
-        NextSwingTime = Math.Round(SimLoop.GetElapsed() + _swingTimer.GetValue(), 2);
+        NextSwingTime = Math.Round(SimLoop.Instance.GetElapsed() + _swingTimer.GetValue(), 2);
     }
 
     private void GainFury(Unit caster, double damageDelt, Spell? spellSource, Aura? auraSource)
@@ -112,7 +112,7 @@ public class Tariq : Unit
             canCastWhileCasting: true,
             onCast: (unit, spell, targets) => { unit.ApplyBuff(unit, unit, _thunderCallAura); }
         );
-        
+
         //TODO: Use stacks on this instead and subtract stacks.
         int focusedWrathUsage = 0;
         Modifier focusedWrathDamageMod = new Modifier(Modifier.StatModType.Multiplicative, 0.5f);
@@ -121,7 +121,7 @@ public class Tariq : Unit
             id: "focused-wrath",
             name: "Focused Wrath",
             duration: 9999,
-            tickInterval:0,
+            tickInterval: 0,
             onApply: (caster, owner) =>
             {
                 focusedWrathUsage = 0;
@@ -162,7 +162,7 @@ public class Tariq : Unit
             castTime: 0,
             hasGCD: false,
             canCastWhileCasting: true,
-            canCast: unit => NextSwingTime <= SimLoop.GetElapsed(),
+            canCast: unit => NextSwingTime <= SimLoop.Instance.GetElapsed(),
             onCast: (unit, spell, targets) =>
             {
                 var target = targets.FirstOrDefault()
@@ -249,7 +249,7 @@ public class Tariq : Unit
                         DealDamage(target, 44.8, _thunderCall);
                     }
                 }
-                
+
                 if (unit.HasBuff(_focusedWrathAura))
                 {
                     focusedWrathUsage++;
@@ -373,7 +373,7 @@ public class Tariq : Unit
                 ));
             }
         );
-        
+
         _leapSmash = new Spell(
             id: "leap-smash",
             name: "Leap Smash",
@@ -386,11 +386,11 @@ public class Tariq : Unit
                 {
                     DealDamage(target, 347, spell);
                 }
-                
+
                 GainFury(0.25);
             }
         );
-        
+
         _cullingStrike = new Spell(
             id: "culling-strike",
             name: "Culling Strike",
@@ -399,27 +399,30 @@ public class Tariq : Unit
             canCast: (unit) =>
             {
                 var target = unit.Targets
-                    .Where(u => u.Health <= 0.3 * u.MaximumHealth).OrderBy(u => u.Health).FirstOrDefault();
+                    .Where(u => u.Health.GetValue() <= 0.3 * u.Health.GetMaxValue())
+                    .OrderBy(u => u.Health.GetValue()).FirstOrDefault();
                 return target != null && Fury >= 0;
             },
             onCast: (unit, spell, targets) =>
             {
                 var target = unit.Targets
-                    .Where(u => u.Health < 0.3 * u.MaximumHealth).OrderBy(u => u.Health).FirstOrDefault();
+                    .Where(u => u.Health.GetValue() <= 0.3 * u.Health.GetMaxValue())
+                    .OrderBy(u => u.Health.GetValue()).FirstOrDefault()
+                    ?? throw new Exception("No valid targets");
                 int maxStacks = 20;
                 int currentStacks = 0;
-                
+
                 while (currentStacks < maxStacks && Fury >= 0.01)
                 {
                     SpendFury(0.01);
                     currentStacks++;
                 }
-                
-                DealDamage(target, (currentStacks * 20) + 200 , _cullingStrike);
-                
+
+                DealDamage(target, (currentStacks * 20) + 200, _cullingStrike);
+
             }
         );
-        
+
         _focusedWrath = new Spell(
             id: "focused-wrath",
             name: "Focused Wrath",
@@ -615,7 +618,7 @@ public class Tariq : Unit
                 _skullCrusher.OnCast += (caster, spell, targets) =>
                 {
                     _skullCrusher.DamageModifiers.RemoveModifier(damageMod);
-                    if (schismProcChance.TryProc(this))
+                    if (schismProcChance.TryProc())
                     {
                         _hammerStorm.DamageModifiers.AddModifier(damageMod);
                     }
@@ -623,7 +626,7 @@ public class Tariq : Unit
                 _hammerStorm.OnCast += (caster, spell, targets) =>
                 {
                     _hammerStorm.DamageModifiers.RemoveModifier(damageMod);
-                    if (schismProcChance.TryProc(this))
+                    if (schismProcChance.TryProc())
                     {
                         _skullCrusher.DamageModifiers.AddModifier(damageMod);
                     }

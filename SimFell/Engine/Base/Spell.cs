@@ -56,7 +56,9 @@ public class Spell
 
     public bool CheckCanCast(Unit caster)
     {
-        return (CanCast?.Invoke(caster) ?? true) && OffCooldown <= caster.SimLoop.GetElapsed() && (CanCastWhileCasting || caster.GCD <= caster.SimLoop.GetElapsed());
+        return (CanCast?.Invoke(caster) ?? true)
+            && OffCooldown <= SimLoop.Instance.GetElapsed()
+            && (CanCastWhileCasting || caster.GCD <= SimLoop.Instance.GetElapsed());
     }
 
     public double GetCastTime(Unit caster)
@@ -79,7 +81,7 @@ public class Spell
         if (!HasGCD)
             if (HasAntiSpam) return 0.6; //Forced 0.6~ oGCD on all spells to stop people from spamming spells.
             else return 0;
-        
+
         //TODO: Load in Config for Global GCD.
         return caster.GetHastedValue(1.5);
     }
@@ -88,7 +90,7 @@ public class Spell
     {
         OnCast?.Invoke(caster, this, targets);
         //Sets the cooldown.
-        OffCooldown = Math.Round(Cooldown.GetValue() + caster.SimLoop.GetElapsed(), 2);  // Reset cooldown after casting
+        OffCooldown = Math.Round(Cooldown.GetValue() + SimLoop.Instance.GetElapsed(), 2);  // Reset cooldown after casting
     }
     
     /// <summary>

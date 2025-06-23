@@ -11,14 +11,12 @@ namespace SimFell.SimFileParser.Models;
 /// </remarks>
 public class GemTier
 {
-    public Gem Gem { get; set; }
+    public GemType Gem { get; set; }
     public Tier Tier { get; set; }
+    public int Power { get; set; }
 
     /// <summary>
     /// Custom ToString method for the GemTier class.
     /// </summary>
-    public override string ToString()
-    {
-        return $"{Gem.Name()} {Tier}";
-    }
+    public override string ToString() => $"{Gem.Name()} {Tier} ({Power} power)";
 }

@@ -32,7 +32,7 @@ public class Rime : Unit
     private Action<int> OnWinterOrbUpdate { get; set; }
     private Action<int> OnAnimaUpdate { get; set; }
 
-    public Rime(SimLoop simLoop, int health) : base(simLoop, "Rime", health)
+    public Rime(int health) : base("Rime", health)
     {
         ConfigureSpellBook();
         ConfigureTalents();
@@ -42,7 +42,7 @@ public class Rime : Unit
     {
         Talents = new List<Talent>();
 
-        #region Row 1
+        #region Talents Row 1
 
         //Chillblain Talent
         var chillBlain = new Talent(
@@ -157,7 +157,7 @@ public class Rime : Unit
         Talents.Add(glacialAssault);
 
         #endregion
-        #region Row 2
+        #region Talents Row 2
 
         // Unrelenting Ice
         var unrelentingIce = new Talent(
@@ -203,7 +203,7 @@ public class Rime : Unit
         Talents.Add(icyFlow);
         Talents.Add(tundraGuard);
         #endregion
-        #region Row 3
+        #region Talents Row 3
 
         // Avalanche
         var avalanche = new Talent(
@@ -284,7 +284,7 @@ public class Rime : Unit
                 var hasUsed = false;
                 unit.OnCrit += (caster, damage, spell, targets) =>
                 {
-                    if (soulFrostRPPM.TryProc(this))
+                    if (soulFrostRPPM.TryProc())
                     {
                         caster.ApplyBuff(caster, caster, soulFrostAura);
                     }
@@ -384,7 +384,7 @@ public class Rime : Unit
             castTime: 0,
             onCast: (unit, spell, targets) =>
             {
-                var target = targets.Where(t => t.Health > 0).FirstOrDefault()
+                var target = targets.Where(t => t.Health.GetValue() > 0).FirstOrDefault()
                              ?? throw new Exception("No valid targets");
                 DealDamage(target, 204, spell);
                 UpdateWinterOrbs(1);
@@ -420,7 +420,7 @@ public class Rime : Unit
             onCast: (unit, spell, targets) =>
             {
                 UpdateWinterOrbs(-2);
-                var target = targets.Where(t => t.Health > 0).FirstOrDefault()
+                var target = targets.Where(t => t.Health.GetValue() > 0).FirstOrDefault()
                              ?? throw new Exception("No valid targets");
 
                 // Builds the OnDamage Event.

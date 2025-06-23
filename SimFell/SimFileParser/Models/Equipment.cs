@@ -11,7 +11,7 @@ public class Equipment
     public int Ilvl { get; set; }
     public Tier Tier { get; set; }
     public TierSet? TierSet { get; set; }
-    public int Intellect { get; set; }
+    public int MainStat { get; set; }
     public int Stamina { get; set; }
     public int? Expertise { get; set; }
     public int? Crit { get; set; }
@@ -30,7 +30,7 @@ public class Equipment
             Ilvl: {Ilvl}
             Tier: {Tier}
             TierSet: {TierSet?.Name() ?? "-"}
-            Intellect: {Intellect}
+            MainStat: {MainStat}
             Stamina: {Stamina}
             Expertise: {Expertise ?? 0}
             Crit: {Crit ?? 0}
@@ -62,6 +62,8 @@ public class Gear
         -> Shoulder: {Shoulder?.ToString()}
         ";
     }
+
+    public List<Equipment> ToList() => [Helmet, Shoulder];
 }
 
 
