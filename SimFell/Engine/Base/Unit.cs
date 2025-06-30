@@ -43,8 +43,8 @@ public class Unit : SimLoopListener
         name: "Spirit of Heroism",
         duration: 20,
         tickInterval: 0,
-        onApply: (unit, target) => { unit.DamageBuffs.AddModifier(spiritOfHeroismMod); },
-        onRemove: (unit, target) => { unit.DamageBuffs.RemoveModifier(spiritOfHeroismMod); }
+        onApply: (unit, target) => { unit.HasteStat.AddModifier(spiritOfHeroismMod); },
+        onRemove: (unit, target) => { unit.HasteStat.RemoveModifier(spiritOfHeroismMod); }
     );
 
 
@@ -269,11 +269,11 @@ public class Unit : SimLoopListener
 
     protected override void Update()
     {
-        Spirit = Math.Min(100, Spirit + (SimLoop.Instance.GetStep() * 0.2 * (1 + (SpiritStat.GetValue() / 100.0)))); //Base Spirit Regen is 0.2.
+        Spirit = Math.Min(100, Spirit + (SimLoop.GetStep() * 0.2 * (1 + (SpiritStat.GetValue() / 100.0)))); //Base Spirit Regen is 0.2.
         // Update buffs
         for (int i = Buffs.Count - 1; i >= 0; i--)
         {
-            Buffs[i].Update(SimLoop.Instance.GetElapsed());
+            Buffs[i].Update(SimLoop.GetElapsed());
             if (Buffs[i].IsExpired)
             {
                 ConsoleLogger.Log(
@@ -289,7 +289,7 @@ public class Unit : SimLoopListener
         // Update debuffs
         for (int i = Debuffs.Count - 1; i >= 0; i--)
         {
-            Debuffs[i].Update(SimLoop.Instance.GetElapsed());
+            Debuffs[i].Update(SimLoop.GetElapsed());
             if (Debuffs[i].IsExpired)
             {
                 ConsoleLogger.Log(
@@ -310,7 +310,7 @@ public class Unit : SimLoopListener
         if (IsCasting && _currentSpell != null)
         {
             //If the casting is done.
-            if (!_currentSpell.Channel && SimLoop.Instance.GetElapsed() >= _castTime)
+            if (!_currentSpell.Channel && SimLoop.GetElapsed() >= _castTime)
             {
                 _currentSpell.Cast(this, Targets);
                 OnCast?.Invoke(this, _currentSpell, Targets);
@@ -318,12 +318,12 @@ public class Unit : SimLoopListener
             }
             else if (_currentSpell.Channel)
             {
-                if (SimLoop.Instance.GetElapsed() >= _tickTime)
+                if (SimLoop.GetElapsed() >= _tickTime)
                 {
                     _tickTime = Math.Round(_tickTime + _currentSpell.GetTickRate(this), 2);
                     _currentSpell.Tick(this, Targets);
                 }
-                if (SimLoop.Instance.GetElapsed() >= _channelTime)
+                if (SimLoop.GetElapsed() >= _channelTime)
                 {
                     StopCasting();
                 }
@@ -362,7 +362,7 @@ public class Unit : SimLoopListener
             SimulationLogLevel.CastEvents,
             $" -> Setting [bold blue]GCD[/] to [bold aqua]{gcd}[/]"
         );
-        GCD = gcd + SimLoop.Instance.GetElapsed();
+        GCD = gcd + SimLoop.GetElapsed();
     }
 
     public void StartCasting(Spell spell, List<Unit> targets)
@@ -377,7 +377,7 @@ public class Unit : SimLoopListener
         {
             _currentSpell = spell;
             Targets = targets;
-            _castTime = Math.Round(SimLoop.Instance.GetElapsed() + spell.GetCastTime(this), 2);
+            _castTime = Math.Round(SimLoop.GetElapsed() + spell.GetCastTime(this), 2);
             IsCasting = true;
             SetGCD(spell.GetGCD(this));
 
@@ -388,8 +388,8 @@ public class Unit : SimLoopListener
                 spell.Cast(this, targets);
                 //Channeled spells always tick once at the very start.
                 spell.Tick(this, targets);
-                _channelTime = Math.Round(SimLoop.Instance.GetElapsed() + spell.GetChannelTime(this), 2);
-                _tickTime = Math.Round(SimLoop.Instance.GetElapsed() + spell.GetTickRate(this), 2);
+                _channelTime = Math.Round(SimLoop.GetElapsed() + spell.GetChannelTime(this), 2);
+                _tickTime = Math.Round(SimLoop.GetElapsed() + spell.GetTickRate(this), 2);
             }
 
             if (spell.GetCastTime(this) == 0 && spell.GetChannelTime(this) == 0)

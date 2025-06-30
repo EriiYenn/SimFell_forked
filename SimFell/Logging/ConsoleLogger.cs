@@ -41,7 +41,8 @@ public static class ConsoleLogger
         }
 
         var formatted = emoji is null ? message : $"{emoji} {message}";
-        var time = SimLoop.Instance.GetElapsed();
+        // var time = SimLoop.Instance.GetElapsed();
+        var time = 0;
 
         var cleanMessage = Regex.Replace(Markup.Escape(formatted), @"\[.*?\]", "").Replace("]", "");
         FileLogger.SimulationEvent(level, $"{time:F2}s : {cleanMessage}");
@@ -61,7 +62,9 @@ public static class ConsoleLogger
             return;
         }
 
-        var time = SimLoop.Instance.GetElapsed();
+        // var time = SimLoop.Instance.GetElapsed();
+        var time = 0;
+
         if (level != SimulationLogLevel.Setup)
         {
             AnsiConsole.MarkupLine($"Time [aqua]{time:F2}[/]:");

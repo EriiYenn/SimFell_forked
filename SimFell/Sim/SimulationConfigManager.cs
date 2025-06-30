@@ -15,6 +15,7 @@ public class SimulationConfigManager
     }
 
     public (string? FullPath, SimFellConfiguration? Config) LoadConfiguration(
+        SimLoop simLoop,
         string? configFile = null,
         bool useFileFinder = false,
         string? customDirectory = null)

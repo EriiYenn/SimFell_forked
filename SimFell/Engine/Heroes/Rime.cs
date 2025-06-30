@@ -284,7 +284,7 @@ public class Rime : Unit
                 var hasUsed = false;
                 unit.OnCrit += (caster, damage, spell, targets) =>
                 {
-                    if (soulFrostRPPM.TryProc())
+                    if (soulFrostRPPM.TryProc(this))
                     {
                         caster.ApplyBuff(caster, caster, soulFrostAura);
                     }

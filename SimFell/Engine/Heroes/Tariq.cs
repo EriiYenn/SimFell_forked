@@ -60,7 +60,7 @@ public class Tariq : Unit
 
     private void ResetSwingTimer()
     {
-        NextSwingTime = Math.Round(SimLoop.Instance.GetElapsed() + _swingTimer.GetValue(), 2);
+        NextSwingTime = Math.Round(SimLoop.GetElapsed() + _swingTimer.GetValue(), 2);
     }
 
     private void GainFury(Unit caster, double damageDelt, Spell? spellSource, Aura? auraSource)
@@ -162,7 +162,7 @@ public class Tariq : Unit
             castTime: 0,
             hasGCD: false,
             canCastWhileCasting: true,
-            canCast: unit => NextSwingTime <= SimLoop.Instance.GetElapsed(),
+            canCast: unit => NextSwingTime <= SimLoop.GetElapsed(),
             onCast: (unit, spell, targets) =>
             {
                 var target = targets.FirstOrDefault()
@@ -618,7 +618,7 @@ public class Tariq : Unit
                 _skullCrusher.OnCast += (caster, spell, targets) =>
                 {
                     _skullCrusher.DamageModifiers.RemoveModifier(damageMod);
-                    if (schismProcChance.TryProc())
+                    if (schismProcChance.TryProc(this))
                     {
                         _hammerStorm.DamageModifiers.AddModifier(damageMod);
                     }
@@ -626,7 +626,7 @@ public class Tariq : Unit
                 _hammerStorm.OnCast += (caster, spell, targets) =>
                 {
                     _hammerStorm.DamageModifiers.RemoveModifier(damageMod);
-                    if (schismProcChance.TryProc())
+                    if (schismProcChance.TryProc(this))
                     {
                         _skullCrusher.DamageModifiers.AddModifier(damageMod);
                     }

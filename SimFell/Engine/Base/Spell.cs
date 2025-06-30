@@ -56,9 +56,7 @@ public class Spell
 
     public bool CheckCanCast(Unit caster)
     {
-        return (CanCast?.Invoke(caster) ?? true)
-            && OffCooldown <= SimLoop.Instance.GetElapsed()
-            && (CanCastWhileCasting || caster.GCD <= SimLoop.Instance.GetElapsed());
+        return (CanCast?.Invoke(caster) ?? true) && OffCooldown <= caster.SimLoop.GetElapsed() && (CanCastWhileCasting || caster.GCD <= caster.SimLoop.GetElapsed());
     }
 
     public double GetCastTime(Unit caster)
@@ -90,7 +88,7 @@ public class Spell
     {
         OnCast?.Invoke(caster, this, targets);
         //Sets the cooldown.
-        OffCooldown = Math.Round(Cooldown.GetValue() + SimLoop.Instance.GetElapsed(), 2);  // Reset cooldown after casting
+        OffCooldown = Math.Round(Cooldown.GetValue() + caster.SimLoop.GetElapsed(), 2);  // Reset cooldown after casting
     }
     
     /// <summary>

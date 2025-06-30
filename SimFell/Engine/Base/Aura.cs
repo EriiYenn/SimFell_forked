@@ -39,19 +39,13 @@ public class Aura
         _expired = false;
     }
 
-    public void Refresh()
-    {
-        //TODO: Pandemic for dots/buffs??
-        _removeAt = Duration + SimLoop.Instance.GetElapsed();
-    }
-
     public void Apply(Unit caster, Unit target)
     {
         _expired = false;
         _caster = caster;
         _target = target;
-        _removeAt = Duration + SimLoop.Instance.GetElapsed();
-        _nextTick = Math.Round(_caster.GetHastedValue(TickInterval) + SimLoop.Instance.GetElapsed(), 2);
+        _removeAt = Duration + caster.SimLoop.GetElapsed();
+        _nextTick = Math.Round(_caster.GetHastedValue(TickInterval) + caster.SimLoop.GetElapsed(), 2);
         OnApply?.Invoke(caster, target);
     }
 

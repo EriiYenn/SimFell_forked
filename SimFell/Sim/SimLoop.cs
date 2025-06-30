@@ -7,8 +7,6 @@ namespace SimFell;
 
 public class SimLoop
 {
-    private static SimLoop? _instance;
-    public static SimLoop Instance => _instance ??= new();
     public event Action? OnUpdate;
     // Simulate 0.1 th of a second. Or 100 Ticks a Second.
     // For reference, WoW servers run at around a 20 Tickrate.
@@ -21,11 +19,13 @@ public class SimLoop
     {
         _ticks = 0;
         damageDealt = 0;
+        player.SetSimLoop(this);
         List<Unit> targets = new List<Unit>();
         foreach (var enemy in enemies)
         {
             targets.Add(enemy);
             enemy.OnDamageReceived += OnDamageReceived;
+            enemy.SetSimLoop(this);
         }
 
         while (true)

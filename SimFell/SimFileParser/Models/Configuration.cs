@@ -52,7 +52,7 @@ public class Condition
                 switch (prop)
                 {
                     case "cooldown":
-                        var now = SimLoop.Instance.GetElapsed();
+                        var now = caster.SimLoop.GetElapsed();
                         leftValue = spell.OffCooldown - now;
                         // ConsoleLogger.Log(SimulationLogLevel.Debug, $"-> [{spell.Name}] Cooldown: {leftValue}");
                         break;

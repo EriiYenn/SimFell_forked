@@ -14,9 +14,9 @@ public class RPPM
     /// <summary>
     /// Attempts to proc based on time since last check. Returns true if proc occurs.
     /// </summary>
-    public bool TryProc()
+    public bool TryProc(Unit unit)
     {
-        double currentTime = SimLoop.Instance.GetElapsed();
+        double currentTime = unit.SimLoop.GetElapsed();
         double deltaTime = currentTime - _lastProcAttemptTime;
         _lastProcAttemptTime = currentTime;
 
@@ -31,8 +31,8 @@ public class RPPM
     /// <summary>
     /// Resets the internal timer (optional if needed).
     /// </summary>
-    public void Reset(bool resetBasedOnElapsedTime = false)
+    public void Reset(Unit unit, bool resetBasedOnElapsedTime = false)
     {
-        _lastProcAttemptTime = resetBasedOnElapsedTime ? SimLoop.Instance.GetElapsed() : 0;
+        _lastProcAttemptTime = resetBasedOnElapsedTime ? unit.SimLoop.GetElapsed() : 0;
     }
 }

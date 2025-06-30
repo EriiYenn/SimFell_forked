@@ -131,7 +131,7 @@ public class GemDictionary
                 );
 
                 unit.OnCast += (caster, spell, targets) => {
-                    if (rubyStormRPPM.TryProc())
+                    if (rubyStormRPPM.TryProc(unit))
                         RubyStorm.Cast(caster, targets);
                 };
             }

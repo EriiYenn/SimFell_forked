@@ -232,6 +232,8 @@ namespace SimFell.SimFileParser
                 case "duration": config.Duration = int.Parse(val); break;
                 case "enemies": config.Enemies = val.Split(',').Select(e => ParseByIdentifier<TargetType>(e)).ToList(); break;
                 case "run_count": config.RunCount = int.Parse(val); break;
+                case "simulation_type": config.SimulationType = ParseByIdentifier<SimulationType>(val); break;
+                case "simulation_mode": config.SimulationMode = ParseByIdentifier<SimulationMode>(val); break;
                 case "gear_helmet": config.Gear.Helmet = ParseEquipment(val); break;
                 case "gear_shoulder": config.Gear.Shoulder = ParseEquipment(val); break;
                 // TODO: parse other gear slots into Equipment objects

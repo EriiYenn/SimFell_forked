@@ -2,20 +2,26 @@ namespace SimFell;
 
 public abstract class SimLoopListener
 {
+    public SimLoop SimLoop { get; set; }
     public SimLoopListener()
     {
-        SimLoop.Instance.OnUpdate += Update;
+    }
+
+    public void SetSimLoop(SimLoop simLoop)
+    {
+        SimLoop = simLoop;
+        SimLoop.OnUpdate += Update;
     }
 
     protected abstract void Update();
 
     public void Stop()
     {
-        SimLoop.Instance.OnUpdate -= Update;
+        SimLoop.OnUpdate -= Update;
     }
 
     ~SimLoopListener()
     {
-        SimLoop.Instance.OnUpdate -= Update;
+        SimLoop.OnUpdate -= Update;
     }
 }
