@@ -17,11 +17,13 @@ public abstract class SimLoopListener
 
     public void Stop()
     {
-        SimLoop.OnUpdate -= Update;
+        if (SimLoop != null)
+            SimLoop.OnUpdate -= Update;
     }
 
     ~SimLoopListener()
     {
-        SimLoop.OnUpdate -= Update;
+        if (SimLoop != null)
+            SimLoop.OnUpdate -= Update;
     }
 }
