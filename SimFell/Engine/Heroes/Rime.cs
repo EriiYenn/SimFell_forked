@@ -281,7 +281,6 @@ public class Rime : Unit
                 );
 
                 var soulFrostRPPM = new RPPM(1.5);
-                var hasUsed = false;
                 unit.OnCrit += (caster, damage, spell, targets) =>
                 {
                     if (soulFrostRPPM.TryProc(this))
@@ -294,7 +293,6 @@ public class Rime : Unit
                 {
                     if (caster.HasBuff(soulFrostAura))
                     {
-                        hasUsed = true;
                         _freezingTorrent.ChannelTime.AddModifier(freezingTorrentChannelTimeMod);
                         _freezingTorrent.DamageModifiers.AddModifier(freezingTorrentDamageMod);
                     }
@@ -311,7 +309,6 @@ public class Rime : Unit
                 {
                     if (caster.HasBuff(soulFrostAura) && spell == _freezingTorrent)
                     {
-                        hasUsed = false;
                         unit.RemoveBuff(soulFrostAura);
                         _freezingTorrent.ChannelTime.RemoveModifier(freezingTorrentChannelTimeMod);
                         _freezingTorrent.DamageModifiers.RemoveModifier(freezingTorrentDamageMod);
